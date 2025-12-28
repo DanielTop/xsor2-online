@@ -957,6 +957,160 @@ var
 			}
 		},
 
+		// ============= ONLINE MULTIPLAYER SYNC =============
+
+		// Get local player's state to send to other players
+		getLocalPlayerState: function() {
+			var online = window.online;
+			if (!online || !online.enabled || online.playerId < 0) return null;
+
+			var playerNames = ['axel1', 'shiva1', 'rbear1'];
+			var playerName = playerNames[online.playerId];
+			var instance = xlib.actorStore.instances[playerName];
+
+			if (!instance || !instance.physicsObject) return null;
+
+			return {
+				x: instance.physicsObject.x,
+				y: instance.physicsObject.y,
+				z: instance.physicsObject.z,
+				stateId: instance.stateId,
+				stateTick: instance.stateTick,
+				flip: instance.axisFlip
+			};
+		},
+
+		// Send local player state to server
+		sendPlayerState: function() {
+			var online = window.online;
+			if (!online || !online.enabled || !online.socket || !online.gameStarted) return;
+
+			var state = xsor.getLocalPlayerState();
+			if (state) {
+				online.socket.emit('playerState', state);
+			}
+		},
+
+		// Apply remote player's state
+		applyRemoteState: function(playerId, state) {
+			var playerNames = ['axel1', 'shiva1', 'rbear1'];
+			var playerName = playerNames[playerId];
+			var instance = xlib.actorStore.instances[playerName];
+
+			if (!instance || !instance.physicsObject) return;
+
+			// Don't apply state to local player
+			if (window.online && playerId === window.online.playerId) return;
+
+			// Apply position
+			instance.physicsObject.x = state.x;
+			instance.physicsObject.y = state.y;
+			instance.physicsObject.z = state.z;
+
+			// Apply state/animation (only if different)
+			if (instance.stateId !== state.stateId) {
+				instance.stateId = state.stateId;
+			}
+
+			// Apply facing direction
+			instance.axisFlip = state.flip;
+		},
+
+		// Apply remote player input (host processes this)
+		applyRemoteInput: function(playerId, input) {
+			// Store remote input for processing in game loop
+			if (!xsor._remoteInputs) xsor._remoteInputs = {};
+			xsor._remoteInputs[playerId] = input;
+		},
+
+		// Get game state for syncing to clients (host only)
+		getGameState: function() {
+			var ws = xsor.waveSystem;
+			var enemies = [];
+
+			// Collect enemy states
+			var playerNames = ['axel1', 'shiva1', 'rbear1'];
+			for (var p in xlib.actorStore.instances) {
+				if (!xlib.actorStore.instances.hasOwnProperty(p)) continue;
+				if (playerNames.indexOf(p) >= 0) continue; // Skip players
+
+				var inst = xlib.actorStore.instances[p];
+				var actorName = inst.actor ? inst.actor.name : '';
+
+				// Only sync enemies (not objects)
+				if (actorName.indexOf('object_') === 0) continue;
+
+				enemies.push({
+					name: p,
+					actorName: actorName,
+					x: inst.physicsObject.x,
+					y: inst.physicsObject.y,
+					z: inst.physicsObject.z,
+					stateId: inst.stateId,
+					flip: inst.axisFlip
+				});
+			}
+
+			return {
+				wave: {
+					currentSection: ws.currentSection,
+					currentWave: ws.currentWave,
+					enemiesSpawned: ws.enemiesSpawned,
+					enemiesAlive: ws.enemiesAlive,
+					waveComplete: ws.waveComplete,
+					canProgress: ws.canProgress
+				},
+				enemies: enemies
+			};
+		},
+
+		// Send game state to clients (host only)
+		sendGameState: function() {
+			var online = window.online;
+			if (!online || !online.enabled || !online.socket || !online.isHost) return;
+
+			var state = xsor.getGameState();
+			online.socket.emit('gameState', state);
+		},
+
+		// Apply game state from host (clients only)
+		applyGameState: function(state) {
+			var online = window.online;
+			if (!online || online.isHost) return;
+
+			// Apply wave system state
+			var ws = xsor.waveSystem;
+			ws.currentSection = state.wave.currentSection;
+			ws.currentWave = state.wave.currentWave;
+			ws.enemiesSpawned = state.wave.enemiesSpawned;
+			ws.enemiesAlive = state.wave.enemiesAlive;
+			ws.waveComplete = state.wave.waveComplete;
+			ws.canProgress = state.wave.canProgress;
+
+			// Apply enemy states
+			state.enemies.forEach(function(enemy) {
+				var inst = xlib.actorStore.instances[enemy.name];
+				if (inst && inst.physicsObject) {
+					inst.physicsObject.x = enemy.x;
+					inst.physicsObject.y = enemy.y;
+					inst.physicsObject.z = enemy.z;
+					if (inst.stateId !== enemy.stateId) {
+						inst.stateId = enemy.stateId;
+					}
+					inst.axisFlip = enemy.flip;
+				}
+			});
+
+			// Show/hide GO arrow
+			if (ws.canProgress) {
+				xsor.showGoArrow();
+			} else {
+				xsor.hideGoArrow();
+			}
+		},
+
+		// ============= END ONLINE SYNC =============
+
 		initParticles: function(particleCount) {
 			// todo: strip out the imageStore and animStore dependencies
 			// todo: die if boundingBox isn't set, and return a useful error
@@ -1620,6 +1774,18 @@ var
 
 					// Update HUD
 					xsor.updateWaveHUD();
+
+					// === ONLINE SYNC ===
+					// Send player state every 3 frames (~20Hz)
+					if (!xsor._syncCounter) xsor._syncCounter = 0;
+					xsor._syncCounter++;
+					if (xsor._syncCounter % 3 === 0) {
+						xsor.sendPlayerState();
+						// Host sends game state (enemies, waves)
+						if (window.online && window.online.isHost) {
+							xsor.sendGameState();
+						}
+					}
 				} else {
 					// Original behavior - maintain actor count
 					var p, j = 0;
