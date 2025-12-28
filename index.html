@@ -1,0 +1,797 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<title>Streets of Rage - Local Coop</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<style>
+		@font-face {
+			font-family: '04b03Regular';
+			src: url('fonts/04b_03__-webfont.woff') format('woff'),
+			     url('fonts/04b_03__-webfont.ttf') format('truetype');
+			font-weight: normal;
+			font-style: normal;
+		}
+
+		* {
+			margin: 0;
+			padding: 0;
+			box-sizing: border-box;
+		}
+
+		body {
+			background: #0a0a1a;
+			color: white;
+			font-family: 'Segoe UI', Arial, sans-serif;
+			overflow: hidden;
+			height: 100vh;
+		}
+
+		/* MAIN MENU */
+		#menu {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background: linear-gradient(135deg, #1a0a2e 0%, #16213e 50%, #0f3460 100%);
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			z-index: 1000;
+		}
+
+		#menu.hidden {
+			display: none;
+		}
+
+		.title {
+			font-family: '04b03Regular', monospace;
+			font-size: 48px;
+			color: #ffcc00;
+			text-shadow: 0 0 20px #ff6600, 0 4px 0 #cc6600;
+			margin-bottom: 20px;
+			letter-spacing: 4px;
+			animation: glow 2s ease-in-out infinite alternate;
+		}
+
+		@keyframes glow {
+			from { text-shadow: 0 0 20px #ff6600, 0 4px 0 #cc6600; }
+			to { text-shadow: 0 0 40px #ffaa00, 0 4px 0 #cc6600, 0 0 60px #ff6600; }
+		}
+
+		.subtitle {
+			font-size: 18px;
+			color: #888;
+			margin-bottom: 60px;
+		}
+
+		.player-select {
+			display: flex;
+			gap: 30px;
+			margin-bottom: 50px;
+		}
+
+		.player-btn {
+			width: 200px;
+			height: 250px;
+			background: rgba(255,255,255,0.05);
+			border: 3px solid #333;
+			border-radius: 15px;
+			cursor: pointer;
+			transition: all 0.3s ease;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			position: relative;
+			overflow: hidden;
+		}
+
+		.player-btn:hover {
+			border-color: #ffcc00;
+			background: rgba(255,204,0,0.1);
+			transform: translateY(-5px);
+			box-shadow: 0 10px 30px rgba(255,204,0,0.3);
+		}
+
+		.player-btn .count {
+			font-family: '04b03Regular', monospace;
+			font-size: 72px;
+			color: #ffcc00;
+			text-shadow: 0 0 10px #ff6600;
+		}
+
+		.player-btn .label {
+			font-size: 20px;
+			color: #aaa;
+			margin-top: 10px;
+		}
+
+		.player-btn .keys {
+			font-size: 12px;
+			color: #666;
+			margin-top: 15px;
+			text-align: center;
+			line-height: 1.6;
+		}
+
+		.controls-info {
+			background: rgba(0,0,0,0.3);
+			padding: 30px 50px;
+			border-radius: 10px;
+			margin-top: 20px;
+		}
+
+		.controls-info h3 {
+			color: #ffcc00;
+			margin-bottom: 15px;
+			font-size: 16px;
+		}
+
+		.controls-grid {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 30px;
+			font-size: 13px;
+		}
+
+		.control-col h4 {
+			color: #ff6600;
+			margin-bottom: 8px;
+		}
+
+		.control-col p {
+			color: #888;
+			line-height: 1.8;
+		}
+
+		kbd {
+			display: inline-block;
+			background: #333;
+			border: 1px solid #555;
+			border-radius: 4px;
+			padding: 2px 6px;
+			font-family: monospace;
+			font-size: 11px;
+			margin: 0 2px;
+		}
+
+		/* Stage select */
+		.stage-select {
+			display: flex;
+			gap: 15px;
+			margin-bottom: 30px;
+		}
+
+		.stage-btn {
+			width: 140px;
+			height: 80px;
+			background: rgba(255,255,255,0.05);
+			border: 2px solid #333;
+			border-radius: 10px;
+			cursor: pointer;
+			transition: all 0.3s ease;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+		}
+
+		.stage-btn:hover {
+			border-color: #888;
+			background: rgba(255,255,255,0.1);
+		}
+
+		.stage-btn.selected {
+			border-color: #ffcc00;
+			background: rgba(255,204,0,0.15);
+			box-shadow: 0 0 15px rgba(255,204,0,0.3);
+		}
+
+		.stage-btn .stage-name {
+			font-family: '04b03Regular', monospace;
+			font-size: 14px;
+			color: #ffcc00;
+		}
+
+		.stage-btn .stage-desc {
+			font-size: 11px;
+			color: #666;
+			margin-top: 5px;
+		}
+
+		/* Stage filters */
+		#surface.stage-1 { filter: none; }
+		#surface.stage-2 { filter: sepia(0.4) saturate(1.3) hue-rotate(-10deg); }
+		#surface.stage-3 { filter: saturate(0.8) brightness(0.9) contrast(1.1); }
+		#surface.stage-4 { filter: saturate(1.4) hue-rotate(20deg) brightness(1.1); }
+
+		/* Game HUD */
+		#game-hud {
+			position: fixed;
+			top: 20px;
+			left: 20px;
+			font-family: '04b03Regular', monospace;
+			font-size: 16px;
+			color: #ffcc00;
+			text-shadow: 2px 2px 0 #000;
+			z-index: 100;
+		}
+
+		#game-hud .hud-item {
+			margin-bottom: 5px;
+		}
+
+		#round-banner {
+			position: fixed;
+			top: 50%;
+			left: 50%;
+			transform: translate(-50%, -50%);
+			font-family: '04b03Regular', monospace;
+			font-size: 48px;
+			color: #ffcc00;
+			text-shadow: 4px 4px 0 #000, 0 0 30px #ff6600;
+			z-index: 200;
+			opacity: 0;
+			transition: opacity 0.5s;
+			pointer-events: none;
+		}
+
+		#round-banner.show {
+			opacity: 1;
+		}
+
+		/* GO Arrow */
+		#go-arrow {
+			position: fixed;
+			right: 50px;
+			top: 50%;
+			transform: translateY(-50%);
+			font-family: '04b03Regular', monospace;
+			font-size: 36px;
+			color: #00ff00;
+			text-shadow: 2px 2px 0 #000, 0 0 20px #00ff00;
+			z-index: 150;
+			opacity: 0;
+			animation: none;
+			pointer-events: none;
+		}
+
+		#go-arrow.show {
+			opacity: 1;
+			animation: goFlash 0.5s ease-in-out infinite;
+		}
+
+		@keyframes goFlash {
+			0%, 100% { opacity: 1; transform: translateY(-50%) translateX(0); }
+			50% { opacity: 0.5; transform: translateY(-50%) translateX(10px); }
+		}
+
+		#go-arrow .arrow {
+			display: inline-block;
+			margin-left: 10px;
+		}
+
+		/* Victory screen */
+		#victory-screen {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background: rgba(0,0,0,0.8);
+			display: none;
+			align-items: center;
+			justify-content: center;
+			flex-direction: column;
+			z-index: 300;
+		}
+
+		#victory-screen.show {
+			display: flex;
+		}
+
+		#victory-screen h1 {
+			font-family: '04b03Regular', monospace;
+			font-size: 64px;
+			color: #ffcc00;
+			text-shadow: 0 0 30px #ff6600;
+			margin-bottom: 30px;
+		}
+
+		#victory-screen p {
+			font-size: 24px;
+			color: #888;
+		}
+
+		/* GAME CONTAINER */
+		#game-container {
+			display: none;
+			width: 100%;
+			height: 100%;
+			background: black;
+			position: relative;
+		}
+
+		#game-container.active {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		canvas {
+			display: block;
+			background: black;
+			image-rendering: -moz-crisp-edges;
+			image-rendering: -webkit-optimize-contrast;
+			image-rendering: pixelated;
+			image-rendering: crisp-edges;
+		}
+
+		/* HUD */
+		#hud {
+			position: fixed;
+			top: 10px;
+			right: 10px;
+			z-index: 100;
+		}
+
+		#back-btn {
+			background: rgba(0,0,0,0.7);
+			border: 2px solid #ffcc00;
+			color: #ffcc00;
+			padding: 10px 20px;
+			font-family: '04b03Regular', monospace;
+			cursor: pointer;
+			border-radius: 5px;
+			transition: all 0.2s;
+		}
+
+		#back-btn:hover {
+			background: #ffcc00;
+			color: black;
+		}
+
+		#fullscreen-btn {
+			background: rgba(0,0,0,0.7);
+			border: 2px solid #666;
+			color: #888;
+			padding: 10px 20px;
+			font-family: '04b03Regular', monospace;
+			cursor: pointer;
+			border-radius: 5px;
+			margin-left: 10px;
+			transition: all 0.2s;
+		}
+
+		#fullscreen-btn:hover {
+			border-color: #ffcc00;
+			color: #ffcc00;
+		}
+
+		#loading {
+			position: fixed;
+			top: 0;
+			left: 0;
+			width: 100%;
+			height: 100%;
+			background: #0a0a1a;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			z-index: 2000;
+		}
+
+		#loading.hidden {
+			display: none;
+		}
+
+		#loading h2 {
+			color: #ffcc00;
+			font-family: '04b03Regular', monospace;
+			margin-bottom: 20px;
+		}
+
+		#loadingstatus {
+			color: #666;
+			font-size: 12px;
+			max-height: 200px;
+			overflow: hidden;
+		}
+
+		.loader {
+			width: 50px;
+			height: 50px;
+			border: 5px solid #333;
+			border-top-color: #ffcc00;
+			border-radius: 50%;
+			animation: spin 1s linear infinite;
+			margin-bottom: 20px;
+		}
+
+		@keyframes spin {
+			to { transform: rotate(360deg); }
+		}
+	</style>
+</head>
+
+<body>
+	<!-- LOADING SCREEN -->
+	<div id="loading">
+		<div class="loader"></div>
+		<h2>LOADING...</h2>
+		<div id="loadingstatus"></div>
+	</div>
+
+	<!-- MAIN MENU -->
+	<div id="menu" class="hidden">
+		<h1 class="title">STREETS OF RAGE</h1>
+		<p class="subtitle">Select number of players</p>
+
+		<div class="player-select">
+			<div class="player-btn" onclick="startGame(1)">
+				<span class="count">1</span>
+				<span class="label">PLAYER</span>
+				<span class="keys">Solo Mode<br>Axel</span>
+			</div>
+			<div class="player-btn" onclick="startGame(2)">
+				<span class="count">2</span>
+				<span class="label">PLAYERS</span>
+				<span class="keys">Co-op<br>Axel + Shiva</span>
+			</div>
+			<div class="player-btn" onclick="startGame(3)">
+				<span class="count">3</span>
+				<span class="label">PLAYERS</span>
+				<span class="keys">Full Team<br>Axel + Shiva + R.Bear</span>
+			</div>
+		</div>
+
+		<p class="subtitle" style="margin-top: 30px; margin-bottom: 20px;">Select Stage</p>
+		<div class="stage-select">
+			<div class="stage-btn selected" onclick="selectStage(1)" data-stage="1">
+				<span class="stage-name">DOWNTOWN</span>
+				<span class="stage-desc">Night City</span>
+			</div>
+			<div class="stage-btn" onclick="selectStage(2)" data-stage="2">
+				<span class="stage-name">SUNSET</span>
+				<span class="stage-desc">Evening Streets</span>
+			</div>
+			<div class="stage-btn" onclick="selectStage(3)" data-stage="3">
+				<span class="stage-name">INDUSTRIAL</span>
+				<span class="stage-desc">Factory Zone</span>
+			</div>
+			<div class="stage-btn" onclick="selectStage(4)" data-stage="4">
+				<span class="stage-name">NEON</span>
+				<span class="stage-desc">Club District</span>
+			</div>
+		</div>
+
+		<div class="controls-info">
+			<h3>CONTROLS</h3>
+			<div class="controls-grid">
+				<div class="control-col">
+					<h4>Player 1 (Axel)</h4>
+					<p>
+						Move: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><br>
+						Attack: <kbd>J</kbd> <kbd>K</kbd> <kbd>L</kbd><br>
+						Special + Punch + Jump
+					</p>
+				</div>
+				<div class="control-col">
+					<h4>Player 2 (Shiva)</h4>
+					<p>
+						Move: <kbd>,</kbd><kbd>.</kbd><kbd>/</kbd><kbd>L</kbd><br>
+						Attack: <kbd>8</kbd> <kbd>9</kbd> <kbd>0</kbd><br>
+						Special + Punch + Jump
+					</p>
+				</div>
+				<div class="control-col">
+					<h4>Player 3 (R.Bear)</h4>
+					<p>
+						Move: <kbd>Num1-3</kbd><kbd>Num5</kbd><br>
+						Attack: <kbd>Ins</kbd> <kbd>Home</kbd> <kbd>PgUp</kbd><br>
+						Special + Punch + Jump
+					</p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- GAME CONTAINER -->
+	<div id="game-container">
+		<canvas width="512" height="240" id="surface"></canvas>
+		<div id="game-hud">
+			<div class="hud-item" id="stage-name">STAGE 1: DOWNTOWN</div>
+			<div class="hud-item" id="wave-display">WAVE: 1/3</div>
+			<div class="hud-item" id="enemies-display">ENEMIES: 0</div>
+		</div>
+		<div id="round-banner">STAGE 1</div>
+		<div id="go-arrow">GO! [ENTER] <span class="arrow">&#9654;&#9654;</span></div>
+		<div id="victory-screen">
+			<h1>VICTORY!</h1>
+			<p>All stages cleared!</p>
+			<button id="back-btn" onclick="backToMenu()" style="margin-top: 30px;">PLAY AGAIN</button>
+		</div>
+		<div id="hud">
+			<button id="back-btn" onclick="backToMenu()">MENU</button>
+			<button id="test-btn" onclick="testWaveComplete()">TEST (skip wave)</button>
+			<button id="fullscreen-btn" onclick="toggleFullscreen()">FULLSCREEN</button>
+		</div>
+		<div id="debug-panel" style="position:fixed; bottom:10px; left:10px; background:rgba(0,0,0,0.8); color:#0f0; font-family:monospace; font-size:12px; padding:10px; border-radius:5px; z-index:9999; max-width:300px;">
+			<div><b>DEBUG PANEL</b></div>
+			<div id="dbg-section">Section: -</div>
+			<div id="dbg-wave">Wave: -</div>
+			<div id="dbg-spawned">Spawned: -</div>
+			<div id="dbg-alive">Alive: -</div>
+			<div id="dbg-complete">WaveComplete: -</div>
+			<div id="dbg-canprogress">CanProgress: -</div>
+			<div id="dbg-instances">Instances: -</div>
+		</div>
+	</div>
+
+	<script>
+		// Stage names
+		var stageNames = ['', 'DOWNTOWN', 'SUNSET', 'INDUSTRIAL', 'NEON'];
+
+		// Global game settings
+		window.gameSettings = {
+			playerCount: 1,
+			stage: 1
+		};
+
+		function selectStage(stage) {
+			window.gameSettings.stage = stage;
+			// Update UI
+			document.querySelectorAll('.stage-btn').forEach(function(btn) {
+				btn.classList.remove('selected');
+			});
+			document.querySelector('.stage-btn[data-stage="' + stage + '"]').classList.add('selected');
+		}
+
+		function startGame(playerCount) {
+			window.gameSettings.playerCount = playerCount;
+
+			document.getElementById('menu').classList.add('hidden');
+			document.getElementById('game-container').classList.add('active');
+
+			// Apply stage filter
+			var canvas = document.getElementById('surface');
+			canvas.className = 'stage-' + window.gameSettings.stage;
+
+			// Update HUD
+			document.getElementById('stage-name').textContent = 'STAGE 1: ' + stageNames[window.gameSettings.stage];
+			document.getElementById('wave-display').textContent = 'WAVE: 1/3';
+			document.getElementById('enemies-display').textContent = 'ENEMIES: 0';
+
+			// Show stage banner
+			showWaveBanner('STAGE 1 - ' + stageNames[window.gameSettings.stage]);
+
+			// Initialize game with selected players
+			if (window.xsor && window.xsor.pagehelpers) {
+				xsor.pagehelpers.init();
+			}
+
+			// Auto-resize canvas (with delay to ensure container is visible)
+			resizeCanvas();
+			setTimeout(resizeCanvas, 100);
+			setTimeout(resizeCanvas, 500);
+
+			// Listen for D key to progress
+			document.addEventListener('keydown', handleProgressKey);
+		}
+
+		function handleProgressKey(e) {
+			console.log('KEY PRESSED:', e.key, e.code);
+
+			// Enter or Space to progress when GO arrow is visible
+			if (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') {
+				e.preventDefault();
+				e.stopPropagation();
+				console.log('=== ENTER/SPACE detected ===');
+				var xsorOk = !!window.xsor;
+				var wsOk = !!(window.xsor && window.xsor.waveSystem);
+				var canProg = window.xsor && window.xsor.waveSystem ? window.xsor.waveSystem.canProgress : false;
+				console.log('xsor:', xsorOk, 'waveSystem:', wsOk, 'canProgress:', canProg);
+
+				if (xsorOk && wsOk && canProg) {
+					console.log('>>> CALLING nextWave() <<<');
+					window.xsor.nextWave();
+				} else {
+					console.log('Cannot progress - condition failed');
+				}
+			}
+			// T = Test mode - instantly complete wave for testing transitions
+			if (e.key === 't' || e.key === 'T') {
+				e.preventDefault();
+				console.log('T pressed - calling testWaveComplete()');
+				testWaveComplete();
+			}
+		}
+
+		// Also add to window for good measure
+		window.addEventListener('keydown', handleProgressKey, true);
+
+		// Functions called from game engine
+		window.showGoArrowUI = function() {
+			console.log('GO Arrow shown! Press ENTER to continue');
+			document.getElementById('go-arrow').classList.add('show');
+		};
+
+		window.hideGoArrowUI = function() {
+			document.getElementById('go-arrow').classList.remove('show');
+		};
+
+		window.updateGameHUD = function(section, wave, enemies) {
+			var stageName = stageNames[((window.gameSettings.stage + section - 2) % 4) + 1];
+			document.getElementById('stage-name').textContent = 'STAGE ' + section + ': ' + stageName;
+			document.getElementById('wave-display').textContent = 'WAVE: ' + wave + '/3';
+			document.getElementById('enemies-display').textContent = 'ENEMIES: ' + enemies;
+		};
+
+		window.showWaveBanner = function(text) {
+			var banner = document.getElementById('round-banner');
+			banner.textContent = text;
+			banner.classList.add('show');
+			setTimeout(function() {
+				banner.classList.remove('show');
+			}, 2000);
+		};
+
+		window.changeStage = function(section) {
+			var canvas = document.getElementById('surface');
+			var stageNum = ((window.gameSettings.stage + section - 2) % 4) + 1;
+			canvas.className = 'stage-' + stageNum;
+		};
+
+		window.showVictory = function() {
+			document.getElementById('victory-screen').classList.add('show');
+		};
+
+		function backToMenu() {
+			location.reload();
+		}
+
+		function toggleFullscreen() {
+			if (!document.fullscreenElement) {
+				document.documentElement.requestFullscreen();
+			} else {
+				document.exitFullscreen();
+			}
+		}
+
+		// Test mode: skip current wave (simulates killing all enemies)
+		function testWaveComplete() {
+			console.log('TEST button clicked!');
+			if (window.xsor && window.xsor.waveSystem && window.xlib) {
+				var ws = window.xsor.waveSystem;
+				var xlib = window.xlib;
+				console.log('TEST MODE: Simulating wave complete!');
+				console.log('Before: Section', ws.currentSection, 'Wave', ws.currentWave);
+
+				// Kill all spawned enemies
+				for (var p in xlib.actorStore.instances) {
+					if (!xlib.actorStore.instances.hasOwnProperty(p)) continue;
+					var inst = xlib.actorStore.instances[p];
+					var actorName = inst.actor ? inst.actor.name : '';
+					// Remove enemy instances (not players, not objects)
+					if (['axel1', 'shiva1', 'rbear1'].indexOf(p) === -1 && actorName.indexOf('object_') !== 0) {
+						delete xlib.actorStore.instances[p];
+						console.log('Removed enemy instance:', p);
+					}
+				}
+
+				// Mark wave as complete
+				ws.enemiesSpawned = ws.enemiesPerWave;
+				ws.waveComplete = true;
+				ws.canProgress = true;
+				window.xsor.showGoArrow();
+				console.log('GO arrow shown! Press ENTER to progress to next wave/section.');
+			} else {
+				console.log('Game not started yet. xsor:', !!window.xsor, 'waveSystem:', !!(window.xsor && window.xsor.waveSystem), 'xlib:', !!window.xlib);
+			}
+		}
+
+		function resizeCanvas() {
+			var canvas = document.getElementById('surface');
+			if (!canvas) return;
+
+			var windowWidth = window.innerWidth;
+			var windowHeight = window.innerHeight;
+
+			// Calculate scale to fit while maintaining aspect ratio
+			var gameRatio = 512 / 240;
+			var windowRatio = windowWidth / windowHeight;
+
+			var newWidth, newHeight;
+			if (windowRatio > gameRatio) {
+				// Window is wider - fit to height
+				newHeight = windowHeight;
+				newWidth = newHeight * gameRatio;
+			} else {
+				// Window is taller - fit to width
+				newWidth = windowWidth;
+				newHeight = newWidth / gameRatio;
+			}
+
+			canvas.style.width = newWidth + 'px';
+			canvas.style.height = newHeight + 'px';
+		}
+
+		window.addEventListener('resize', resizeCanvas);
+		window.addEventListener('load', resizeCanvas);
+		document.addEventListener('fullscreenchange', function() {
+			setTimeout(resizeCanvas, 100);
+		});
+
+		// Also resize when game starts
+		setTimeout(resizeCanvas, 500);
+
+		// Debug panel update
+		function updateDebugPanel() {
+			if (!window.xsor || !window.xsor.waveSystem) {
+				document.getElementById('dbg-section').textContent = 'Section: (not started)';
+				return;
+			}
+			var ws = window.xsor.waveSystem;
+			var xlib = window.xlib;
+
+			document.getElementById('dbg-section').textContent = 'Section: ' + ws.currentSection + '/' + ws.totalSections;
+			document.getElementById('dbg-wave').textContent = 'Wave: ' + ws.currentWave + '/' + ws.wavesPerSection;
+			document.getElementById('dbg-spawned').textContent = 'Spawned: ' + ws.enemiesSpawned + '/' + ws.enemiesPerWave;
+			document.getElementById('dbg-alive').textContent = 'Alive: ' + ws.enemiesAlive;
+			document.getElementById('dbg-complete').textContent = 'WaveComplete: ' + ws.waveComplete;
+			document.getElementById('dbg-canprogress').textContent = 'CanProgress: ' + ws.canProgress;
+
+			// List all instances
+			if (xlib && xlib.actorStore) {
+				var names = [];
+				for (var p in xlib.actorStore.instances) {
+					if (xlib.actorStore.instances.hasOwnProperty(p)) {
+						names.push(p);
+					}
+				}
+				document.getElementById('dbg-instances').textContent = 'Instances: ' + names.join(', ');
+			}
+		}
+		setInterval(updateDebugPanel, 200);
+	</script>
+
+	<script>
+		// LABjs bootloader
+		(function(g,b,d){var c=b.head||b.getElementsByTagName("head"),D="readyState",E="onreadystatechange",F="DOMContentLoaded",G="addEventListener",H=setTimeout;
+		function f(){
+			$LAB
+				.setOptions({
+					ExecuteCallback: function(filepath, finishedCount, totalCount) {
+						var filenameStart = filepath.lastIndexOf("/") + 1;
+						var filename = filepath.substr((filenameStart !== -1 ? filenameStart : 0));
+						document.getElementById("loadingstatus").innerHTML += filename + " ... done<br>";
+					},
+					AlwaysPreserveOrder: true,
+					CacheBust: true
+				})
+				.script("xlib2/xlib2.js")
+				.script("xlib2/xlib2.genericstatemachines.js")
+				.script("xsor2.js")
+				.script("xsor2.statemachines.js")
+				.script("xsor2.resourcedata.images.js")
+				.script("xsor2.resourcedata.animations.js")
+				.script("xsor2.resourcedata.audio.js")
+				.script("xsor2.resourcedata.actors.js")
+				.script("xsor2.resourcedata.stages.js")
+				.script("xsor2.pagehelpers.js")
+				.script("xlib2/microajax_min.js")
+				.wait(function() {
+					document.getElementById("loading").classList.add('hidden');
+					document.getElementById("menu").classList.remove('hidden');
+				});
+		}
+		H(function(){if("item"in c){if(!c[0]){H(arguments.callee,25);return}c=c[0]}var a=b.createElement("script"),e=false;a.onload=a[E]=function(){if((a[D]&&a[D]!=="complete"&&a[D]!=="loaded")||e){return false}a.onload=a[E]=null;e=true;f()};
+		a.src="xlib2/LAB_xhva_min.js";
+		c.insertBefore(a,c.firstChild)},0);if(b[D]==null&&b[G]){b[D]="loading";b[G](F,d=function(){b.removeEventListener(F,d,false);b[D]="complete"},false)}})(this,document);
+	</script>
+</body>
+</html>
